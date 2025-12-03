@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEAM EARTHQUAKE - Premium Tier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* BASE & THEME */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; 
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 16px;
+        }
+        #map {
+            /* Adjusted height for better vertical fit */
+            height: 90vh; 
+            width: 100%;
+            max-width: none;
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            z-index: 0; 
+        }
+        /* Make the map full height of its container in the new flex layout */
+        .map-and-sidebar-container {
+             /* Use 90vh for full viewport height for desktop view */
+            min-height: 90vh;
+        }
+
+
+        /* VIDEO SPLASH SCREEN STYLES (No changes needed here) */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 1;
+            transition: opacity 1.5s ease-out;
+        }
+        #splash-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #intro-video {
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            object-fit: cover;
+            filter: brightness(0.6);
+        }
+        #video-title {
+            position: relative;
+            z-index: 10;
+            color: white;
+            font-size: 5rem;
+            font-weight: 800;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.8), 0 0 10px black;
+        }
+
+
+        /* Existing Map & Component Styles (No changes needed here) */
+        #central-marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background-color: transparent;
+            border: 2px solid #93c5fd;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1000;
+            box-shadow: 0 0 10px rgba(147, 197, 253, 0.8);
+        }
+
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: #2d3748;
+            color: #f3f4f6;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        .leaflet-popup-close-button {
+            color: #9ca3af;
+        }
+        .leaflet-popup-content a {
+            color: #93c5fd;
+        }
+        .leaflet-top.leaflet-left {
+            top: 1rem;
+            left: 1rem;
+        }
+        .leaflet-control-container .leaflet-top.leaflet-right {
+            top: 1rem;
+            right: 1rem;
+        }
+
+        .risk-spot-marker { 
+            background-color: #a78bfa;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #8b5cf6;
+            box-shadow: 0 0 10px #a78bfa, 0 0 5px #8b5cf6;
+        }
+        #audio-playback {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .leaflet-control-custom {
+            background-color: #1f2937;
+            padding: 5px;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+            cursor: pointer;
+            text-align: center;
+        }
+        .leaflet-control-custom button {
+            background: #4b5563;
+            color: #f3f4f6;
+            border: none;
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        .leaflet-control-custom button:hover {
+            background: #6b7280;
+        }
+        /* Unlocking all normal features visually */
+        .locked-feature {
+            opacity: 1 !important; /* Keep the opacity high for unlocked features */
+            cursor: pointer !important;
+        }
+        .locked-feature-text {
+            color: #ef4444; /* Red-500 */
+            font-weight: 600;
+        }
+        /* New premium features are visibly dimmed/locked for Normal */
+        .premium-locked {
+            opacity: 0.5;
+            cursor: not-allowed !important;
+        }
+
+    </style>
+</head>
+<body class="selection:bg-indigo-300 selection:text-indigo-900">
+
+    <div id="splash-screen">
+        <video id="intro-video" muted autoplay loop playsinline poster="https://via.placeholder.com/1920x1080/000000/FFFFFF?text=Shaking+Building+Intro+Placeholder">
+            <source src="YOUR_VIDEO_URL_HERE" type="video/mp4">
+            </video>
+        <div id="video-title">TEAM EARTHQUAKE</div>
+    </div>
+
+
+    <div id="app" class="w-full flex flex-col items-center" style="display:none;">
+        <header class="text-center mb-6 w-full max-w-4xl xl:max-w-7xl">
+            <h1 class="text-4xl font-extrabold text-white mb-2">TEAM EARTHQUAKE</h1>
+            <p id="status-message" class="text-indigo-400 font-medium">Map Initializing...</p>
+            <div id="tier-display" class="mt-2 text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-indigo-500">
+                Current Tier: PREMIUM 💎
+            </div>
+            <button id="toggle-tier" class="mt-1 text-sm text-gray-400 hover:text-white transition duration-150">
+                (Click to Toggle Tier)
+            </button>
+            <button id="show-features-button" class="mt-2 ml-4 bg-gray-600 hover:bg-gray-500 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out transform hover:scale-105">
+                Feature Comparison
+            </button>
+        </header>
+        
+        <div id="feature-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-[10000] flex items-center justify-center p-4">
+            <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-lg w-full">
+                <h2 class="text-3xl font-bold text-center mb-4 text-white">Feature Comparison</h2>
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="text-gray-400 border-b border-gray-700">
+                            <th class="py-2">Feature</th>
+                            <th class="py-2 text-center">Normal</th>
+                            <th class="py-2 text-center text-yellow-400">Premium</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-300">
+                        <tr class="border-b border-gray-700">
+                            <td class="py-3 font-semibold">Real-Time EQ Map & Filters</td>
+                            <td class="py-3 text-center text-green-400">✅</td>
+                            <td class="py-3 text-center text-yellow-400">✅</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="py-3 font-semibold">Tectonic Analysis (Gemini-Powered)</td>
+                            <td class="py-3 text-center text-green-400">✅</td>
+                            <td class="py-3 text-center text-yellow-400">✅</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="py-3 font-semibold">Max Depth Filter Control</td>
+                            <td class="py-3 text-center text-green-400">✅</td>
+                            <td class="py-3 text-center text-yellow-400">✅</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="py-3 font-semibold">Simplified EQ Impact Summary</td>
+                            <td class="py-3 text-center text-green-400">✅</td>
+                            <td class="py-3 text-center text-yellow-400">✅</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="py-3 font-semibold">AI Seismic Fact Generator</td>
+                            <td class="py-3 text-center text-green-400">✅</td>
+                            <td class="py-3 text-center text-yellow-400">✅</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="py-3 font-semibold">AI Landmark Image Generator</td>
+                            <td class="py-3 text-center text-green-400">✅</td>
+                            <td class="py-3 text-center text-yellow-400">✅</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="py-3 font-semibold text-cyan-400">New! 3D Globe Flyover Control</td>
+                            <td class="py-3 text-center text-red-500">❌</td>
+                            <td class="py-3 text-center text-cyan-400">✅ EXCLUSIVE</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 font-semibold text-cyan-400">New! AI Shake Map Generation</td>
+                            <td class="py-3 text-center text-red-500">❌</td>
+                            <td class="py-3 text-center text-cyan-400">✅ EXCLUSIVE</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="text-sm text-center text-gray-400 mt-4">The Normal tier now includes all base AI features. Premium unlocks the advanced 3D Viewer and Shake Map Generation.</p>
+                <button id="close-modal" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-4 mb-6 p-4 bg-gray-700 rounded-xl shadow-lg w-full max-w-4xl xl:max-w-7xl">
+            <div class="flex flex-col md:flex-row items-center gap-3">
+                <label for="magnitude-select" class="text-gray-300 font-semibold">Magnitude Filter:</label>
+                <select id="magnitude-select" class="p-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                    <option value="all">All Earthquakes (All Mags)</option>
+                    <option value="significant">Significant (M4.5+)</option>
+                    <option value="4.5" selected>M4.5+ (Weekly Default)</option>
+                    <option value="2.5">M2.5+</option>
+                    <option value="1.0">M1.0+</option>
+                </select>
+            </div>
+            
+            <div class="flex flex-col md:flex-row items-center gap-3">
+                <label for="period-select" class="text-gray-300 font-semibold">Time Period:</label>
+                <select id="period-select" class="p-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                    <option value="hour">Last Hour</option>
+                    <option value="day">Last 24 Hours</option>
+                    <option value="week" selected>Last 7 Days</option>
+                    <option value="month">Last 30 Days</option>
+                </select>
+            </div>
+
+            <div id="depth-filter-container" class="flex flex-col md:flex-row items-center gap-3 w-40 transition-opacity duration-300">
+                <label for="depth-slider" class="text-gray-300 font-semibold text-sm whitespace-nowrap">Max Depth: <span id="depth-value">700</span> km</label>
+                <input type="range" id="depth-slider" min="10" max="700" value="700" step="10" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer range-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <span id="depth-lock-message" class="text-xs locked-feature-text absolute mt-12 hidden"></span>
+            </div>
+            
+            <button id="update-button" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-105">
+                <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="button-text">Refresh Map</span>
+            </button>
+            
+            <button id="analyze-button" class="bg-pink-600 hover:bg-pink-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-105">
+                <span id="analyze-button-text">✨ Analyze Map Center Risk</span>
+            </button>
+        </div>
+
+        <div class="map-and-sidebar-container w-full max-w-[1600px] flex flex-col md:flex-row md:gap-6">
+
+            <div id="map" class="md:w-3/5 relative">
+                <div id="central-marker"></div>
+            </div>
+
+            <div class="mt-4 md:mt-0 md:w-2/5 p-4 bg-gray-700 rounded-xl shadow-lg flex flex-col gap-6">
+
+                <div class="bg-gray-800 p-3 rounded-lg text-center text-sm font-mono border border-gray-600">
+                    <p class="text-gray-400">Map Center (Lat, Lon): <span id="center-coords" class="text-indigo-300">N/A</span></p>
+                </div>
+
+                <div id="premium-actions" class="p-4 bg-gray-900 rounded-lg shadow-inner border border-cyan-700">
+                    <h3 class="font-bold text-lg text-cyan-400 mb-3 border-b border-gray-700 pb-1">💎 Premium Toolkit</h3>
+                    
+                    <button id="globe-view-button" class="mt-2 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150">
+                        <i class="fa-solid fa-earth-americas"></i> 3D Globe Flyover
+                    </button>
+
+                    <button id="shake-map-button" class="mt-3 w-full bg-orange-600 hover:bg-orange-500 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150">
+                        <i class="fa-solid fa-house-crack"></i> AI Shake Map Generator
+                    </button>
+                    <p id="shake-map-status" class="text-xs text-gray-400 mt-1 italic hidden">Generating shake map...</p>
+                </div>
+
+
+                <div id="gemini-output" class="flex-1 bg-gray-800 p-4 rounded-lg shadow-inner">
+                    <h3 class="font-bold text-lg text-pink-400 mb-2 border-b border-gray-700 pb-1">✨ Seismic Risk Profile</h3>
+                    <p id="gemini-content" class="text-gray-400 text-sm italic">Click "✨ Analyze Map Center Risk" to get a Gemini-powered analysis of the seismic risk for the area currently displayed in the center of the map.</p>
+                    <div id="gemini-sources" class="mt-2 text-xs text-gray-500 hidden"></div>
+                    
+                    <button id="tts-button" disabled class="mt-4 w-full bg-indigo-700 hover:bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150 disabled:bg-gray-600 disabled:text-gray-400">
+                        <i class="fa-solid fa-volume-up"></i> ✨ Read Plate Context
+                    </button>
+                    <audio id="audio-playback" controls style="display:none;"></audio>
+                </div>
+                
+                <div id="random-fact-section" class="bg-gray-800 p-4 rounded-lg shadow-inner">
+                    <h3 class="font-bold text-base text-yellow-400 mb-2 border-b border-gray-700 pb-1">🧠 Seismic Fact</h3>
+                    <p id="fact-content" class="text-gray-400 text-sm italic">No fact generated.</p>
+                    <button id="fact-button" class="mt-3 w-full bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-medium py-1 px-3 rounded-lg shadow-md transition duration-150">
+                        <i class="fa-solid fa-lightbulb"></i> Generate New Fact
+                    </button>
+                </div>
+                
+                <div id="landmark-image-section" class="bg-gray-800 p-4 rounded-lg shadow-inner">
+                    <h3 class="font-bold text-base text-cyan-400 mb-2 border-b border-gray-700 pb-1">📸 Nearest Landmark</h3>
+                    <div id="landmark-info" class="text-center">
+                        <p id="landmark-name" class="text-white font-semibold text-lg">N/A</p>
+                        <p id="landmark-distance" class="text-gray-400 text-sm mb-2">Distance: N/A</p>
+                        <div class="h-40 bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center">
+                            <img id="landmark-image" src="" alt="Nearest Landmark" class="w-full h-full object-cover" style="display:none;">
+                            <p id="image-placeholder" class="text-gray-500 text-xs italic p-4">Image will appear here after analysis.</p>
+                            <img id="shake-map-image" src="" alt="AI Generated Shake Map" class="w-full h-full object-cover" style="display:none;">
+                        </div>
+                    </div>
+                    <button id="goto-landmark-button" disabled class="mt-3 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-medium py-1 px-3 rounded-lg shadow-md transition duration-150 disabled:bg-gray-600 disabled:text-gray-400">
+                        <i class="fa-solid fa-location-arrow"></i> Go to Landmark
+                    </button>
+                </div>
+
+
+                <div class="p-4 bg-gray-800 rounded-lg shadow-inner">
+                    <h3 class="font-bold text-white mb-2 border-b border-gray-700 pb-1">Map Legend:</h3>
+                    <div class="grid grid-cols-2 gap-y-2 gap-x-4 text-gray-300 text-sm">
+                        <div class="col-span-2 font-semibold text-base text-indigo-400 mt-1">Real-Time Earthquakes:</div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full" style="background-color: #3498db;"></div>
+                            <span>Minor (< 4.0)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full" style="background-color: #f1c40f;"></div>
+                            <span>Light (4.0 - 4.9)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full" style="background-color: #e67e22;"></div>
+                            <span>Moderate (5.0 - 5.9)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full" style="background-color: #e74c3c;"></div>
+                            <span>Strong (6.0+)</span>
+                        </div>
+                        <div class="col-span-2 font-semibold text-base text-pink-400 mt-2 border-t border-gray-700 pt-2">Seismic History:</div>
+                        <div class="flex items-center gap-2 col-span-2">
+                            <div class="risk-spot-marker w-3 h-3" style="background-color: #a78bfa; border: 1px solid #8b5cf6;"></div>
+                            <span>Past M4.5+ (Last 30 Days)</span>
+                        </div>
+                         <div class="col-span-2 font-semibold text-base text-yellow-400 mt-2 border-t border-gray-700 pt-2">Landmarks:</div>
+                         <div class="flex items-center gap-2 col-span-2">
+                            <span class="text-xl">⭐</span>
+                            <span>Famous Structures</span>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div> 
+        </div> 
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        // --- Gemini API Configuration ---
+        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+        const IMAGE_MODEL = "imagen-3.0-generate-002"; 
+        const TTS_MODEL = "gemini-2.5-flash-preview-tts"; 
+        // NOTE: Replace API Key below with a valid key.
+        const apiKey = "AIzaSyBZhL_DXE9A_FKexeJfp5GZhEgULME6BrM"; 
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+        const IMAGE_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateImages?key=${apiKey}`; 
+        const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${apiKey}`;
+
+        // --- Globals ---
+        const USGS_BASE_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/"; 
+        let map;
+        let mapTileLayer;
+        let earthquakeLayer;
+        let historicalLayer; 
+        let structuresLayer; 
+        let initializationAttempts = 0;
+        const maxInitializationAttempts = 20; 
+        const NEARBY_THRESHOLD_KM = 300; 
+        let nearestLandmark = null; 
+        let latestEarthquakes = []; 
+        let userTier = 'PREMIUM'; // Setting initial tier to PREMIUM as requested
+
+        const DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        const LIGHT_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        let isDarkMode = true;
+        
+        const FAMOUS_STRUCTURES_DATA = [
+            [37.8267, -122.4233, "Golden Gate Bridge", "San Francisco, USA", "A dramatic, modern photo of the Golden Gate Bridge at sunset, cinematic style."],
+            [34.0522, -118.2437, "Hollywood Sign", "Los Angeles, USA", "A cinematic, stylized photo of the Hollywood Sign with the city in the background, daytime."],
+            [19.4326, -99.1332, "Palacio Nacional", "Mexico City, Mexico", "A colorful, daytime photo of the Palacio Nacional in Mexico City."],
+            [38.9072, -77.0369, "Washington Monument", "Washington D.C., USA", "An artistic, high-contrast black and white photo of the Washington Monument."],
+            [35.6895, 139.6917, "Tokyo Skytree", "Tokyo, Japan", "A futuristic, vibrant night-time photo of the Tokyo Skytree."],
+            [31.2304, 121.4737, "Oriental Pearl Tower", "Shanghai, China", "A highly detailed, modern photo of the Oriental Pearl Tower surrounded by neon lights."],
+            [41.0082, 28.9784, "Hagia Sophia", "Istanbul, Turkey", "A beautiful, wide-angle shot of the Hagia Sophia's exterior."],
+            [41.8902, 12.4922, "Colosseum", "Rome, Italy", "A sunset photograph of the Roman Colosseum."],
+            [-33.4489, -70.6693, "Plaza de Armas", "Santiago, Chile", "A busy, colorful photo of the Plaza de Armas in Santiago, Chile."],
+            [-12.0464, -77.0428, "Plaza Mayor", "Lima, Peru", "A sunny, historical photo of the Plaza Mayor, Lima."],
+            [-41.2865, 174.7762, "Te Papa Museum", "Wellington, New Zealand", "A modern, architectural shot of the Te Papa Museum in Wellington."],
+            [-33.8568, 151.2153, "Sydney Opera House", "Sydney, Australia", "An iconic, blue-sky photo of the Sydney Opera House."],
+        ];
+        
+        // DOM Elements
+        const statusMessage = document.getElementById('status-message');
+        const magSelect = document.getElementById('magnitude-select');
+        const periodSelect = document.getElementById('period-select');
+        const updateButton = document.getElementById('update-button');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const buttonText = document.getElementById('button-text');
+        const analyzeButton = document.getElementById('analyze-button');
+        const geminiContent = document.getElementById('gemini-content');
+        const geminiSources = document.getElementById('gemini-sources');
+        const ttsButton = document.getElementById('tts-button'); 
+        const audioPlayback = document.getElementById('audio-playback'); 
+        const centerCoords = document.getElementById('center-coords'); 
+        const factButton = document.getElementById('fact-button'); 
+        const factContent = document.getElementById('fact-content'); 
+        const landmarkImage = document.getElementById('landmark-image'); 
+        const imagePlaceholder = document.getElementById('image-placeholder'); 
+        const landmarkName = document.getElementById('landmark-name'); 
+        const landmarkDistance = document.getElementById('landmark-distance'); 
+        const gotoLandmarkButton = document.getElementById('goto-landmark-button'); 
+        const depthSlider = document.getElementById('depth-slider'); 
+        const depthValue = document.getElementById('depth-value');
+        const depthFilterContainer = document.getElementById('depth-filter-container');
+        const depthLockMessage = document.getElementById('depth-lock-message');
+        const splashScreen = document.getElementById('splash-screen');
+        const appContainer = document.getElementById('app');
+        const introVideo = document.getElementById('intro-video');
+        const toggleTierButton = document.getElementById('toggle-tier');
+        const tierDisplay = document.getElementById('tier-display');
+        const showFeaturesButton = document.getElementById('show-features-button');
+        const featureModal = document.getElementById('feature-modal');
+        const closeModalButton = document.getElementById('close-modal');
+        // New Premium Elements
+        const globeViewButton = document.getElementById('globe-view-button');
+        const shakeMapButton = document.getElementById('shake-map-button');
+        const shakeMapStatus = document.getElementById('shake-map-status');
+        const shakeMapImage = document.getElementById('shake-map-image');
+
+        // --- Tier Logic ---
+
+        function updateTierDisplay() {
+            if (userTier === 'PREMIUM') {
+                tierDisplay.innerHTML = 'Current Tier: PREMIUM 💎';
+                tierDisplay.classList.remove('from-yellow-400', 'to-pink-500');
+                tierDisplay.classList.add('from-cyan-300', 'to-indigo-500');
+            } else {
+                tierDisplay.innerHTML = 'Current Tier: NORMAL 🔓';
+                tierDisplay.classList.add('from-yellow-400', 'to-pink-500');
+                tierDisplay.classList.remove('from-cyan-300', 'to-indigo-500');
+            }
+        }
+
+        function toggleTier() {
+            userTier = userTier === 'NORMAL' ? 'PREMIUM' : 'NORMAL';
+            updateTierDisplay();
+            updatePremiumFeaturesState();
+            // Re-fetch earthquakes to respect the depth filter state (even though it's now unlocked)
+            fetchEarthquakes(); 
+        }
+
+        function updatePremiumFeaturesState() {
+            const isPremium = userTier === 'PREMIUM';
+
+            // All 'Normal' features are UNLOCKED for both tiers now.
+            depthSlider.disabled = false;
+            analyzeButton.disabled = false;
+            factButton.disabled = false;
+            
+            // NEW PREMIUM FEATURES:
+            globeViewButton.disabled = !isPremium;
+            globeViewButton.classList.toggle('premium-locked', !isPremium);
+            globeViewButton.title = isPremium ? 'Open 3D Viewer' : 'Premium Feature: 3D Globe Viewer';
+
+            shakeMapButton.disabled = !isPremium;
+            shakeMapButton.classList.toggle('premium-locked', !isPremium);
+            shakeMapButton.title = isPremium ? 'Generate AI Shake Map' : 'Premium Feature: AI Shake Map Generator';
+            
+            // Clean up old state if downgraded
+            if (!isPremium) {
+                // Hide any generated shake map
+                shakeMapImage.style.display = 'none';
+                imagePlaceholder.style.display = 'block';
+                imagePlaceholder.textContent = 'Image will appear here after analysis.';
+            }
+
+        }
+
+        // --- Utility Functions ---
+
+        async function fetchWithRetry(url, payload, maxRetries = 5, delay = 1000, isTts = false, isImage = false) {
+            const isGeminiCall = payload !== undefined;
+            const method = isGeminiCall ? 'POST' : 'GET';
+            const headers = isGeminiCall ? { 'Content-Type': 'application/json' } : {};
+            const body = isGeminiCall ? JSON.stringify(payload) : null;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, { method, headers, body });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delay * 2**i));
+                }
+            }
+        }
+        
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function pcmToWav(pcm16, sampleRate = 24000) {
+            const numChannels = 1;
+            const bytesPerSample = 2; 
+            const byteRate = sampleRate * numChannels * bytesPerSample;
+            const blockAlign = numChannels * bytesPerSample;
+            const dataSize = pcm16.length * bytesPerSample;
+            
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+            let offset = 0;
+            function writeString(str) {
+                for (let i = 0; i < str.length; i++) {
+                    view.setUint8(offset++, str.charCodeAt(i));
+                }
+            }
+            writeString('RIFF');
+            view.setUint32(offset, 36 + dataSize, true); offset += 4;
+            writeString('WAVE');
+            writeString('fmt '); offset += 4;
+            view.setUint32(offset, 16, true); offset += 4;
+            view.setUint16(offset, 1, true); offset += 2;
+            view.setUint16(offset, numChannels, true); offset += 2;
+            view.setUint32(offset, sampleRate, true); offset += 4;
+            view.setUint32(offset, byteRate, true); offset += 4;
+            view.setUint16(offset, blockAlign, true); offset += 2;
+            view.setUint16(offset, 16, true); offset += 2;
+            writeString('data'); offset += 4;
+            view.setUint32(offset, dataSize, true); offset += 4;
+            for (let i = 0; i < pcm16.length; i++) {
+                view.setInt16(offset, pcm16[i], true); offset += 2;
+            }
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+
+        window.readPlateContext = async function() {
+            // Note: This feature is now available to both tiers
+
+            const analysisTextElement = document.getElementById('gemini-content');
+            let textToSpeak = analysisTextElement.textContent.trim();
+            
+            if (textToSpeak.includes('Click "✨ Analyze Map Center Risk"')) {
+                textToSpeak = "Please click the Analyze Map Center Risk button first to generate a seismic risk profile.";
+            }
+
+            ttsButton.disabled = true;
+            ttsButton.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Generating Audio...`;
+            audioPlayback.style.display = 'none';
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: `Say in an informative voice: ${textToSpeak}` }]
+                }],
+                generationConfig: {
+                    responseModality: "AUDIO",
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: "Charon" } 
+                        }
+                    }
+                },
+                model: TTS_MODEL
+            };
+
+            try {
+                const result = await fetchWithRetry(TTS_API_URL, payload, 5, 1000, true);
+                
+                const part = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                    const rateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+                    
+                    const pcmDataBuffer = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmDataBuffer);
+                    
+                    const wavBlob = pcmToWav(pcm16, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    
+                    audioPlayback.src = audioUrl;
+                    audioPlayback.style.display = 'block';
+                    audioPlayback.play();
+
+                    ttsButton.innerHTML = `<i class="fa-solid fa-volume-up"></i> ✨ Audio Ready (Playing)`;
+                } else {
+                    throw new Error("Invalid TTS audio response format.");
+                }
+
+            } catch (error) {
+                console.error("Gemini TTS Error:", error);
+                ttsButton.innerHTML = `<i class="fa-solid fa-exclamation-triangle"></i> TTS Error`;
+            } finally {
+                setTimeout(() => {
+                    ttsButton.disabled = false;
+                    if (!ttsButton.innerHTML.includes('Error')) {
+                        ttsButton.innerHTML = `<i class="fa-solid fa-volume-up"></i> ✨ Read Plate Context`;
+                    }
+                }, 1500);
+            }
+        };
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * (Math.PI / 180);
+            const dLon = (lon2 - lon1) * (Math.PI / 180);
+            const a = 
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const d = R * c;
+            return d;
+        }
+
+        function getMarkerStyle(mag) {
+            let color = '#3498db'; 
+            let radius = 3; 
+            if (mag >= 6.0) {
+                color = '#e74c3c'; 
+                radius = 12 + Math.pow(mag - 5.5, 2) * 2;
+            } else if (mag >= 5.0) {
+                color = '#e67e22'; 
+                radius = 8 + Math.pow(mag - 4.5, 2) * 1.5;
+            } else if (mag >= 4.0) {
+                color = '#f1c40f'; 
+                radius = 5 + mag * 0.5;
+            }
+            radius = Math.min(25, radius); 
+            return {
+                fillColor: color,
+                color: '#1f2937', 
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.9,
+                radius: radius,
+            };
+        }
+
+        async function createHistoricalSeismicLayer() {
+            if (historicalLayer) {
+                historicalLayer.clearLayers();
+            }
+            const historicalApiUrl = `${USGS_BASE_URL}4.5_month.geojson`;
+            try {
+                const geojsonData = await fetchWithRetry(historicalApiUrl);
+                geojsonData.features.forEach(feature => {
+                    const { mag, place, time } = feature.properties;
+                    const [longitude, latitude] = feature.geometry.coordinates;
+                    if (mag === null || latitude === null || longitude === null) return;
+                    const date = new Date(time).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                    const marker = L.circleMarker([latitude, longitude], {
+                        radius: mag * 0.75,
+                        fillColor: '#a78bfa',
+                        color: '#8b5cf6',  
+                        weight: 1,
+                        opacity: 0.5,
+                        fillOpacity: 0.2
+                    });
+                    marker.bindPopup(`
+                        <div class="font-sans text-sm text-pink-300 font-bold">
+                            Historical Event (M${mag.toFixed(1)})
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">${place}</p>
+                        <p class="text-xs text-gray-400">Date: ${date}</p>
+                    `);
+                    historicalLayer.addLayer(marker);
+                });
+            } catch (error) {
+                console.error("Failed to fetch historical seismic data:", error);
+            }
+        }
+        
+        function createStructureMarkers() {
+            if (structuresLayer) {
+                structuresLayer.clearLayers();
+            }
+            const customIcon = L.divIcon({
+                className: 'text-2xl text-yellow-300 drop-shadow-lg',
+                html: '⭐', 
+                iconSize: [24, 24],
+                iconAnchor: [12, 24]
+            });
+            FAMOUS_STRUCTURES_DATA.forEach(structure => {
+                const [lat, lon, name] = structure;
+                const marker = L.marker([lat, lon], { icon: customIcon });
+                marker.bindPopup(`
+                    <div class="font-sans text-sm p-1">
+                        <p class="text-lg font-bold text-yellow-300">${name}</p>
+                        <p class="text-gray-400">${structure[3]}</p>
+                        <p class="text-xs text-gray-500 mt-1">Global Landmark</p>
+                    </div>
+                `);
+                structuresLayer.addLayer(marker);
+            });
+        }
+
+        function toggleMapTheme() {
+            const button = document.querySelector('.leaflet-control-custom button');
+            if (isDarkMode) {
+                mapTileLayer.setUrl(LIGHT_TILES);
+                document.body.style.backgroundColor = '#f3f4f6'; 
+                button.innerHTML = `<i class="fa-solid fa-sun"></i> / <i class="fa-solid fa-moon"></i>`;
+                isDarkMode = false;
+            } else {
+                mapTileLayer.setUrl(DARK_TILES);
+                document.body.style.backgroundColor = '#1f2937'; 
+                button.innerHTML = `<i class="fa-solid fa-moon"></i> / <i class="fa-solid fa-sun"></i>`;
+                isDarkMode = true;
+            }
+        }
+
+
+        function initializeMap() {
+            if (map) {
+                map.remove();
+            }
+
+            map = L.map('map').setView([20, 0], 3);
+
+            mapTileLayer = L.tileLayer(DARK_TILES, {
+                maxZoom: 19,
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | Data: USGS/EMSC', 
+            }).addTo(map);
+
+            earthquakeLayer = L.layerGroup().addTo(map);
+            historicalLayer = L.layerGroup().addTo(map);
+            structuresLayer = L.layerGroup().addTo(map); 
+
+            const CustomControl = L.Control.extend({
+                onAdd: function(map) {
+                    const div = L.DomUtil.create('div', 'leaflet-control-custom');
+                    div.innerHTML = `<button onclick="toggleMapTheme()">
+                                        <i class="fa-solid fa-moon"></i> / <i class="fa-solid fa-sun"></i>
+                                    </button>`;
+                    return div;
+                },
+                onRemove: function(map) {}
+            });
+            new CustomControl({ position: 'topright' }).addTo(map);
+
+            createHistoricalSeismicLayer();
+            createStructureMarkers(); 
+
+            updateButton.addEventListener('click', fetchEarthquakes);
+            magSelect.addEventListener('change', fetchEarthquakes);
+            periodSelect.addEventListener('change', fetchEarthquakes);
+            
+            // Depth slider is now fully functional in both tiers
+            depthSlider.addEventListener('input', () => {
+                depthValue.textContent = depthSlider.value;
+            });
+            depthSlider.addEventListener('change', fetchEarthquakes);
+
+            analyzeButton.addEventListener('click', window.analyzeMapCenterRisk); 
+            ttsButton.addEventListener('click', window.readPlateContext); 
+            factButton.addEventListener('click', window.generateRandomSeismicFact); 
+            
+            // Tier toggling and modal logic
+            toggleTierButton.addEventListener('click', toggleTier);
+            showFeaturesButton.addEventListener('click', () => featureModal.classList.remove('hidden'));
+            closeModalButton.addEventListener('click', () => featureModal.classList.add('hidden'));
+
+            gotoLandmarkButton.addEventListener('click', () => { 
+                if (nearestLandmark) {
+                    map.flyTo([nearestLandmark.lat, nearestLandmark.lon], 7);
+                }
+            });
+            
+            // NEW PREMIUM EXCLUSIVE BUTTON LISTENERS
+            globeViewButton.addEventListener('click', window.open3DGlobeView);
+            shakeMapButton.addEventListener('click', window.generateShakeMap);
+
+
+            map.on('move', updateCenterCoords);
+            map.on('zoom', updateCenterCoords);
+            updateCenterCoords();
+        }
+
+        function updateCenterCoords() {
+            const center = map.getCenter();
+            centerCoords.textContent = `${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`;
+        }
+
+
+        
+        async function fetchEarthquakes() {
+            const magnitude = magSelect.value;
+            const period = periodSelect.value;
+            const apiUrl = `${USGS_BASE_URL}${magnitude}_${period}.geojson`;
+
+            loadingSpinner.classList.remove('hidden');
+            buttonText.textContent = 'Loading...';
+            updateButton.disabled = true;
+            statusMessage.textContent = 'Fetching real-time data...';
+
+            try {
+                const geojsonData = await fetchWithRetry(apiUrl);
+                
+                // Depth is controlled by the slider, which is now always enabled
+                const maxDepth = parseFloat(depthSlider.value);
+                
+                latestEarthquakes = geojsonData.features.filter(f => {
+                    const depth = f.geometry.coordinates[2];
+                    return depth !== null && depth <= maxDepth;
+                });
+
+                createMarkers({ features: latestEarthquakes });
+                
+                const count = latestEarthquakes.length;
+                statusMessage.textContent = `Success! Displaying ${count} earthquakes (${magnitude}, Past ${period}, Depth < ${maxDepth}km).`;
+
+                if (count > 0) {
+                    const biggest = latestEarthquakes.reduce((prev, current) => 
+                        (prev.properties.mag > current.properties.mag) ? prev : current
+                    );
+                    const [lon, lat] = biggest.geometry.coordinates;
+                    map.flyTo([lat, lon], map.getZoom() < 5 ? 5 : map.getZoom());
+                }
+
+            } catch (error) {
+                console.error("Failed to fetch earthquake data:", error);
+                statusMessage.textContent = `Error: Could not fetch data. Check console for details. (Try smaller time range or lower magnitude filter.)`;
+            } finally {
+                loadingSpinner.classList.add('hidden');
+                buttonText.textContent = 'Refresh Map';
+                updateButton.disabled = false;
+            }
+        }
+
+        // New Premium Feature 1: 3D Globe View
+        window.open3DGlobeView = function() {
+            if (userTier !== 'PREMIUM') {
+                alert('This is an EXCLUSIVE Premium feature: 3D Globe Viewer.');
+                return;
+            }
+            const center = map.getCenter();
+            const lat = center.lat.toFixed(4);
+            const lon = center.lng.toFixed(4);
+            // Use a standard Google Maps link with 3D/globe view parameters
+            const googleEarthUrl = `http://maps.google.com/?ll=${lat},${lon}&z=10&t=k&layer=c&cbll=${lat},${lon}&cbp=12,0,0,0,0&fid=8`;
+            window.open(googleEarthUrl, '_blank');
+        };
+        
+        // New Premium Feature 2: AI Shake Map Generator
+        window.generateShakeMap = async function() {
+            if (userTier !== 'PREMIUM') {
+                alert('This is an EXCLUSIVE Premium feature: AI Shake Map Generator.');
+                return;
+            }
+            
+            const center = map.getCenter();
+            const lat = center.lat.toFixed(4);
+            const lon = center.lng.toFixed(4);
+            
+            // Find the most significant earthquake in the current view/period
+            const significantEQ = latestEarthquakes.reduce((max, eq) => {
+                return (eq.properties.mag > (max ? max.properties.mag : 0)) ? eq : max;
+            }, null);
+            
+            let promptBase = `A realistic, false-color seismic shake map visualization centered at Latitude ${lat}, Longitude ${lon}. The map should show intensity contours over a satellite image.`;
+            
+            if (significantEQ) {
+                promptBase = `A realistic, false-color seismic shake map visualization showing the impact of a magnitude ${significantEQ.properties.mag.toFixed(1)} earthquake at a depth of ${significantEQ.geometry.coordinates[2].toFixed(1)} km near ${significantEQ.properties.place}. Show V-shaped intensity contours over a satellite image, highly realistic, labeled in Spanish or English.`;
+            } else {
+                 promptBase = `A realistic, false-color seismic risk and hazard map visualization centered at Latitude ${lat}, Longitude ${lon}. Show the area's expected seismic intensity distribution over a satellite image, highly realistic, labeled.`;
+            }
+            
+            shakeMapButton.disabled = true;
+            shakeMapButton.classList.add('premium-locked'); // Use locked style for loading state
+            shakeMapStatus.textContent = significantEQ ? `Simulating Shake Map for M${significantEQ.properties.mag.toFixed(1)}...` : 'Generating Seismic Hazard Map...';
+            shakeMapStatus.classList.remove('hidden');
+
+            landmarkImage.style.display = 'none';
+            imagePlaceholder.style.display = 'block';
+            shakeMapImage.style.display = 'none';
+            imagePlaceholder.textContent = shakeMapStatus.textContent;
+
+            const payload = {
+                config: {
+                    prompt: promptBase,
+                    numberOfImages: 1,
+                    outputMimeType: "image/jpeg",
+                    aspectRatio: "1:1"
+                }
+            };
+
+            try {
+                const response = await fetchWithRetry(IMAGE_API_URL, payload, 5, 1000, false, true);
+                const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+
+                if (imageBytes) {
+                    const imageUrl = `data:image/jpeg;base64,${imageBytes}`;
+                    shakeMapImage.src = imageUrl;
+                    shakeMapImage.style.display = 'block';
+                    imagePlaceholder.style.display = 'none';
+                    landmarkImage.style.display = 'none'; // Ensure landmark is hidden
+                    shakeMapStatus.textContent = 'Shake Map Generated!';
+                    shakeMapImage.classList.remove('hidden');
+                } else {
+                    throw new Error("No image data returned.");
+                }
+
+            } catch (error) {
+                console.error("Imagen API Shake Map Error:", error);
+                shakeMapStatus.textContent = 'Error: Failed to generate Shake Map.';
+                imagePlaceholder.textContent = 'Error generating Shake Map.';
+                shakeMapImage.src = '';
+            } finally {
+                shakeMapButton.disabled = false;
+                shakeMapButton.classList.remove('premium-locked');
+                setTimeout(() => {
+                    shakeMapStatus.classList.add('hidden');
+                }, 5000);
+            }
+        };
+
+        window.generateLandmarkImage = async function(prompt) {
+             // This is now an UNLOCKED feature, keep the existing logic
+             shakeMapImage.style.display = 'none'; // Ensure Shake Map is hidden when showing Landmark
+            
+            landmarkImage.style.display = 'none';
+            imagePlaceholder.style.display = 'block';
+            imagePlaceholder.textContent = 'Generating landmark image... this may take a moment.';
+
+            const payload = {
+                config: {
+                    prompt: prompt,
+                    numberOfImages: 1,
+                    outputMimeType: "image/jpeg",
+                    aspectRatio: "1:1"
+                }
+            };
+
+            try {
+                const response = await fetchWithRetry(IMAGE_API_URL, payload, 5, 1000, false, true);
+                const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+
+                if (imageBytes) {
+                    const imageUrl = `data:image/jpeg;base64,${imageBytes}`;
+                    landmarkImage.src = imageUrl;
+                    landmarkImage.style.display = 'block';
+                    imagePlaceholder.style.display = 'none';
+                    shakeMapImage.style.display = 'none'; // Ensure Shake Map is hidden
+                } else {
+                    throw new Error("No image data returned.");
+                }
+
+            } catch (error) {
+                console.error("Imagen API Error:", error);
+                imagePlaceholder.textContent = 'Error generating image.';
+                landmarkImage.src = '';
+            }
+        };
+
+        function createMarkers(geojsonData) {
+            earthquakeLayer.clearLayers();
+            nearestLandmark = null;
+            let minDistance = Infinity;
+            
+            const features = geojsonData.features;
+
+            features.forEach(feature => {
+                const { mag, place, time, url } = feature.properties;
+                const [longitude, latitude, depth] = feature.geometry.coordinates;
+                
+                if (mag === null || latitude === null || longitude === null || depth === null) return;
+                
+                const style = getMarkerStyle(mag);
+                let proximityWarning = '';
+                
+                FAMOUS_STRUCTURES_DATA.forEach(structure => {
+                    const [structLat, structLon, structName, structCity, structPrompt] = structure;
+                    const distance = getDistance(latitude, longitude, structLat, structLon);
+
+                    if (distance < NEARBY_THRESHOLD_KM) {
+                        proximityWarning += `
+                            <p class="text-sm font-semibold text-yellow-500 mb-1">
+                                ⚠️ **Near ${structName}** (${distance.toFixed(0)} km)
+                            </p>`;
+                    }
+
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestLandmark = { lat: structLat, lon: structLon, name: structName, city: structCity, distance: distance, prompt: structPrompt };
+                    }
+                });
+                
+                const marker = L.circleMarker([latitude, longitude], {
+                    radius: style.radius,
+                    fillColor: style.fillColor,
+                    color: style.color,
+                    weight: style.weight,
+                    opacity: style.opacity,
+                    fillOpacity: style.fillOpacity
+                });
+
+                const date = new Date(time);
+                const timeString = date.toLocaleString('en-US', {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    timeZoneName: 'short'
+                });
+
+                const escapedPlace = place.replace(/'/g, "\\'");
+
+                const popupContent = `
+                    <div class="font-sans text-sm p-1">
+                        <p class="text-lg font-bold text-red-400">Magnitude ${mag.toFixed(1)}</p>
+                        ${proximityWarning} 
+                        <p class="mt-1">${place}</p>
+                        <p class="text-gray-400">Time: ${timeString}</p>
+                        <p class="text-gray-400">Depth: ${depth.toFixed(1)} km</p>
+                        <hr class="my-2 border-gray-600">
+                        
+                        <div id="simple-impact-${time}" class="mb-2 text-gray-400 text-xs italic">
+                            Click 'Simplify Impact' for analysis.
+                        </div>
+
+                        <button onclick="simplifyEarthquakeDetails(${mag}, ${depth.toFixed(2)}, '${escapedPlace}', ${time})" 
+                                class="text-xs bg-indigo-700 hover:bg-indigo-600 text-white font-medium py-1 px-2 rounded-lg shadow-md transition duration-150">
+                            ✨ Simplify Impact
+                        </button>
+
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="font-medium hover:text-indigo-300 transition-colors ml-2 text-xs">
+                            View Full Report →
+                        </a>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent);
+                earthquakeLayer.addLayer(marker);
+            });
+
+            // Update Nearest Landmark section (always active now)
+            if (nearestLandmark && minDistance < Infinity) {
+                landmarkName.textContent = nearestLandmark.name;
+                landmarkDistance.textContent = `Distance: ${nearestLandmark.distance.toFixed(0)} km`;
+                gotoLandmarkButton.disabled = false;
+                imagePlaceholder.textContent = 'Ready to generate image.';
+                
+                if (nearestLandmark.distance < 100) {
+                    window.generateLandmarkImage(nearestLandmark.prompt);
+                }
+
+            } else {
+                landmarkName.textContent = 'N/A';
+                landmarkDistance.textContent = 'Distance: N/A';
+                gotoLandmarkButton.disabled = true;
+                landmarkImage.style.display = 'none';
+                imagePlaceholder.style.display = 'block';
+                imagePlaceholder.textContent = 'No close landmark found within 300km.';
+            }
+        }
+        
+        window.analyzeMapCenterRisk = async function() {
+            // This is now an UNLOCKED feature
+
+            const center = map.getCenter();
+            const lat = center.lat.toFixed(4);
+            const lon = center.lng.toFixed(4);
+
+            analyzeButton.disabled = true;
+            analyzeButton.textContent = 'Analyzing...';
+            ttsButton.disabled = true; 
+            geminiContent.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 inline text-pink-500" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span class="text-pink-400">Consulting seismic data for Lat: ${lat}, Lon: ${lon}...</span>`;
+            geminiSources.classList.add('hidden');
+            audioPlayback.style.display = 'none'; 
+
+            const systemPrompt = "You are a specialized Geoscience Analyst. Analyze the seismic history, tectonic plate context, and current earthquake risk for the provided location. Base your response only on grounded search results. Provide a concise, professional summary of 3-4 sentences. Do not mention the coordinates in the final summary.";
+            const userQuery = `What is the seismic history, tectonic plate context, and current earthquake risk for the location at Latitude ${lat} and Longitude ${lon}?`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            
+            try {
+                const response = await fetchWithRetry(GEMINI_API_URL, payload);
+                const candidate = response.candidates?.[0];
+                const text = candidate?.content?.parts?.[0]?.text || "Analysis failed to produce text.";
+                
+                let sources = [];
+                const groundingMetadata = candidate?.groundingMetadata;
+
+                if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                    sources = groundingMetadata.groundingAttributions
+                        .map((attr, index) => {
+                            const uri = attr.web?.uri;
+                            const title = attr.web?.title || `Source ${index + 1}`;
+                            return `<a href="${uri}" target="_blank" class="hover:underline">${title}</a>`;
+                        })
+                        .filter(Boolean); 
+                }
+                
+                geminiContent.innerHTML = `<span class="text-white">${text}</span>`;
+                
+                if (sources.length > 0) {
+                    geminiSources.innerHTML = `<span class="font-semibold">Sources:</span> ${sources.join(' | ')}`;
+                    geminiSources.classList.remove('hidden');
+                } else {
+                    geminiSources.classList.add('hidden');
+                }
+                
+                ttsButton.disabled = false; 
+
+                // Landmark image and info logic (now also fully unlocked)
+                let minDistanceCenter = Infinity;
+                let landmarkAtCenter = null;
+
+                FAMOUS_STRUCTURES_DATA.forEach(structure => {
+                    const [structLat, structLon, structName, structCity, structPrompt] = structure;
+                    const distance = getDistance(lat, lon, structLat, structLon);
+
+                    if (distance < minDistanceCenter) {
+                        minDistanceCenter = distance;
+                        landmarkAtCenter = { lat: structLat, lon: structLon, name: structName, city: structCity, distance: distance, prompt: structPrompt };
+                    }
+                });
+
+                if (landmarkAtCenter && minDistanceCenter < NEARBY_THRESHOLD_KM) {
+                    nearestLandmark = landmarkAtCenter;
+                    landmarkName.textContent = nearestLandmark.name;
+                    landmarkDistance.textContent = `Distance: ${nearestLandmark.distance.toFixed(0)} km`;
+                    gotoLandmarkButton.disabled = false;
+                    window.generateLandmarkImage(nearestLandmark.prompt);
+                } else {
+                    landmarkName.textContent = 'N/A';
+                    landmarkDistance.textContent = 'Distance: N/A';
+                    gotoLandmarkButton.disabled = true;
+                    landmarkImage.style.display = 'none';
+                    imagePlaceholder.style.display = 'block';
+                    imagePlaceholder.textContent = 'No close landmark found for this center area.';
+                }
+
+
+            } catch (error) {
+                console.error("Gemini API Analysis Error:", error);
+                geminiContent.innerHTML = `<span class="text-red-400">Error: Failed to fetch seismic risk analysis from the Gemini API. (Details in console)</span>`;
+            } finally {
+                analyzeButton.disabled = false;
+                analyzeButton.textContent = '✨ Analyze Map Center Risk';
+            }
+        };
+        
+        window.generateRandomSeismicFact = async function() {
+            // This is now an UNLOCKED feature
+            
+            const center = map.getCenter();
+            const lat = center.lat.toFixed(4);
+            const lon = center.lng.toFixed(4);
+
+            factButton.disabled = true;
+            factContent.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2 inline text-yellow-400" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span class="text-yellow-400">Generating fact...</span>`;
+
+            const systemPrompt = "You are an expert seismologist generating interesting, little-known facts about earthquakes and plate tectonics for the given location. The fact must be a single, engaging sentence and must not exceed 20 words. Base your response only on grounded search results. Do not mention the coordinates.";
+            const userQuery = `Generate an interesting seismic fact about the area at Latitude ${lat} and Longitude ${lon}.`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            try {
+                const response = await fetchWithRetry(GEMINI_API_URL, payload);
+                const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "Failed to generate fact.";
+                
+                factContent.innerHTML = `<span class="text-gray-200">${text}</span>`;
+            } catch (error) {
+                console.error("Gemini Fact Generator Error:", error);
+                factContent.innerHTML = `<span class="text-red-400">Error generating fact.</span>`;
+            } finally {
+                factButton.disabled = false;
+            }
+        };
+
+
+        // --- Splash Screen Logic ---
+        function hideSplashScreen() {
+            splashScreen.classList.add('fade-out');
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+                appContainer.style.display = 'flex'; // Show main content
+                map.invalidateSize(); // Fixes map rendering issues after container size change
+                
+                // Final setup after map is visible
+                updateTierDisplay();
+                updatePremiumFeaturesState();
+                fetchEarthquakes(); // Initial data load
+            }, 1500); // Wait for fade-out transition (1.5s)
+        }
+
+        // --- Robust Initialization (MODIFIED FOR 2-SECOND FIX) ---
+        let leafletIntervalId = null;
+
+        function ensureLeafletAndInitialize() {
+            if (typeof L !== 'undefined' && typeof L.map === 'function') {
+                clearInterval(leafletIntervalId); 
+                
+                // 1. Initialize Leaflet Map (Hidden)
+                initializeMap(); 
+
+                // 2. Force a 2-second delay to hide the splash screen.
+                const INTRO_DURATION_MS = 2000; // 2 seconds
+                
+                // Attempt to play the video 
+                introVideo.play().catch(e => console.warn("Video playback interrupted or blocked. Proceeding with timeout."));
+
+                // Force the splash screen to disappear after 2 seconds
+                setTimeout(hideSplashScreen, INTRO_DURATION_MS); 
+
+            } else {
+                initializationAttempts++;
+                if (initializationAttempts >= maxInitializationAttempts) {
+                    clearInterval(leafletIntervalId); 
+                    console.error("Leaflet failed to load after multiple checks.");
+                    statusMessage.textContent = "Fatal Error: Map library (Leaflet) failed to load. Please check your network.";
+                    hideSplashScreen();
+                }
+            }
+        }
+
+        window.onload = function() {
+            introVideo.muted = true;
+            leafletIntervalId = setInterval(ensureLeafletAndInitialize, 100);
+        };
+        // --- End Robust Initialization ---
+
+    </script>
+</body>
+</html>
